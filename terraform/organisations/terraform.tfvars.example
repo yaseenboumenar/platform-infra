@@ -1,0 +1,19 @@
+# =======================================================================
+# terraform/organisations/terraform.tfvars.example
+#
+# Copy to terraform.tfvars and fill in your real values.
+# NEVER commit terraform.tfvars
+# =======================================================================
+
+root_account_id = "YOUR_MANAGEMENT_ACCOUNT_ID"
+
+account_emails = {
+  ingest_dv  = "you+ingest-dv@yourdomain.com"
+  ingest_te  = "you+ingest-te@yourdomain.com"
+  ingest_pp  = "you+ingest-pp@yourdomain.com"
+  ingest_pd  = "you+ingest-pd@yourdomain.com"
+  process_dv = "you+process-storage-dv@yourdomain.com"
+  process_te = "you+process-storage-te@yourdomain.com"
+  process_pp = "you+process-storage-pp@yourdomain.com"
+  process_pd = "you+process-storage-pd@yourdomain.com"
+}

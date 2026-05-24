@@ -1,0 +1,102 @@
+# =============================================================================
+# .github/workflows/unlock-tf-state.yaml
+#
+# Force-releases a stuck Terraform state lock.
+#
+# WHEN TO USE:
+#   A terraform apply was interrupted (pipeline cancelled, timed out, crashed)
+#   and left a lock in DynamoDB. Subsequent runs fail with:
+#     "Error acquiring the state lock: ConditionalCheckFailedException"
+#
+# HOW TO FIND THE LOCK ID:
+#   Look at the failed workflow run output. It shows something like:
+#   "Lock Info: ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+#
+# SAFETY: Only run this when you are CERTAIN no apply is actually in progress.
+#         Check the GitHub Actions run history first.
+# =============================================================================
+
+name: Unlock TF State
+
+on:
+  workflow_dispatch:
+    inputs:
+      layer:
+        description: 'Layer with the stuck lock'
+        required: true
+        type: choice
+        options: [ingest, process-storage]
+      environment:
+        description: 'Environment with the stuck lock'
+        required: true
+        type: choice
+        options: [dv, te, pp, pd]
+      module:
+        description: 'Which TF module is locked'
+        required: true
+        type: choice
+        options: [networking, iam-oidc, organizations]
+      lock_id:
+        description: 'Lock ID from the failed run (UUID format)'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  unlock:
+    name: Unlock ${{ github.event.inputs.layer }}-${{ github.event.inputs.environment }}/${{ github.event.inputs.module }}
+    runs-on: ubuntu-latest
+    environment: unlock-approvers   # requires manual approval — set this up in repo settings
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set account ID
+        run: |
+          LAYER="${{ github.event.inputs.layer }}"
+          ENV="${{ github.event.inputs.environment }}"
+          case "${LAYER}_${ENV}" in
+            ingest_dv)           ACCOUNT="${{ secrets.INGEST_DV_ACCOUNT_ID }}"  ;;
+            ingest_te)           ACCOUNT="${{ secrets.INGEST_TE_ACCOUNT_ID }}"  ;;
+            ingest_pp)           ACCOUNT="${{ secrets.INGEST_PP_ACCOUNT_ID }}"  ;;
+            ingest_pd)           ACCOUNT="${{ secrets.INGEST_PD_ACCOUNT_ID }}"  ;;
+            process-storage_dv)  ACCOUNT="${{ secrets.PROCESS_DV_ACCOUNT_ID }}" ;;
+            process-storage_te)  ACCOUNT="${{ secrets.PROCESS_TE_ACCOUNT_ID }}" ;;
+            process-storage_pp)  ACCOUNT="${{ secrets.PROCESS_PP_ACCOUNT_ID }}" ;;
+            process-storage_pd)  ACCOUNT="${{ secrets.PROCESS_PD_ACCOUNT_ID }}" ;;
+          esac
+          echo "ACCOUNT_ID=$ACCOUNT" >> $GITHUB_ENV
+          echo "LAYER=$LAYER"        >> $GITHUB_ENV
+          echo "ENV=$ENV"            >> $GITHUB_ENV
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.ACCOUNT_ID }}:role/github-actions-platform-${{ env.ENV }}
+          aws-region: eu-west-2
+          role-session-name: tf-unlock-${{ env.LAYER }}-${{ env.ENV }}-${{ github.run_id }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.8.0"
+
+      - name: Terraform Init
+        working-directory: terraform/${{ github.event.inputs.module }}
+        run: |
+          terraform init \
+            -backend-config="bucket=qbits-tfstate-${{ env.LAYER }}-${{ env.ENV }}" \
+            -backend-config="key=${{ github.event.inputs.module }}/terraform.tfstate" \
+            -backend-config="region=eu-west-2" \
+            -backend-config="dynamodb_table=qbits-tflock-${{ env.LAYER }}-${{ env.ENV }}" \
+            -reconfigure
+
+      - name: Force Unlock
+        working-directory: terraform/${{ github.event.inputs.module }}
+        run: |
+          echo "Unlocking: ${{ github.event.inputs.layer }}-${{ github.event.inputs.environment }}/${{ github.event.inputs.module }}"
+          echo "Lock ID: ${{ github.event.inputs.lock_id }}"
+          terraform force-unlock -force "${{ github.event.inputs.lock_id }}"
+          echo "Lock released."

@@ -1,0 +1,21 @@
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/tfplan
+**/.terraformrc
+
+# Sensitive var files - NEVER commit these
+**/terraform.tfvars
+
+# Account ID exports
+account-ids.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

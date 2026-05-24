@@ -43,3 +43,8 @@ variable "vpc_cidr" {
     EOT
 }
 
+variable "enable_glue_endpoint" {
+  description = "Only enable in accounts where Glue jobs are actively running"
+  type        = bool
+  default     = false
+}

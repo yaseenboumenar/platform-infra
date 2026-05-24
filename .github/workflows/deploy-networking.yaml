@@ -77,6 +77,7 @@ jobs:
           fi
           echo "LAYER=${{ matrix.layer }}" >> $GITHUB_ENV
           echo "ENV=dv" >> $GITHUB_ENV
+          echo "ENABLE_GLUE_ENDPOINT=true" >> $GITHUB_ENV
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -106,6 +107,7 @@ jobs:
             -var="environment=${{ env.ENV }}" \
             -var="layer=${{ env.LAYER }}" \
             -var="account_id=${{ env.ACCOUNT_ID }}" \
+            -var="vpc_cidr=${{ env.VPC_CIDR }}" \
             -var="vpc_cidr=${{ env.VPC_CIDR }}" \
             -out=tfplan
           terraform apply -auto-approve tfplan
@@ -138,6 +140,7 @@ jobs:
           echo "VPC_CIDR=$CIDR"      >> $GITHUB_ENV
           echo "LAYER=$LAYER"        >> $GITHUB_ENV
           echo "ENV=$ENV"            >> $GITHUB_ENV
+          echo "ENABLE_GLUE_ENDPOINT=false" >> $GITHUB_ENV
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -167,6 +170,7 @@ jobs:
             -var="environment=${{ env.ENV }}" \
             -var="layer=${{ env.LAYER }}" \
             -var="account_id=${{ env.ACCOUNT_ID }}" \
+            -var="vpc_cidr=${{ env.VPC_CIDR }}" \
             -var="vpc_cidr=${{ env.VPC_CIDR }}" \
             -out=tfplan
 

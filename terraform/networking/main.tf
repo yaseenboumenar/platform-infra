@@ -63,7 +63,7 @@ resource "aws_vpc" "main" {
   cidr_block            = var.vpc_cidr
   enable_dns_hostnames  = true
   enable_dns_support    = true
-  tags                  = { name = "vpc-${var.layer}-${var.environment}" }
+  tags                  = { Name = "vpc-${var.layer}-${var.environment}" }
 }
 
 # =============================================================================
@@ -77,7 +77,7 @@ resource "aws_subnet" "private_a" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = cidrsubnet(var.vpc_cidr, 8, 1)
   availability_zone = "${var.aws_region}a"
-  tags              = { name = "subnet-private-${var.layer}-${var.environment}-a"}
+  tags              = { Name = "subnet-private-${var.layer}-${var.environment}-a"}
 }
 
 resource "aws_subnet" "private_b" {
@@ -151,6 +151,7 @@ resource "aws_security_group" "vpce_glue" {
   name        = "vpce-glue-${var.layer}-${var.environment}"
   description = "Controls access to the Glue Interface VPC Endpoint"
   vpc_id      = aws_vpc.main.id
+  count       = var.enable_glue_endpoint ? 1 : 0
 
   ingress {
     description     = "HTTPS from Glue jobs"
@@ -167,9 +168,10 @@ resource "aws_vpc_endpoint" "glue" {
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.glue"
   vpc_endpoint_type   = "Interface"
+  count               = var.enable_glue_endpoint ? 1 : 0
   private_dns_enabled = true
   subnet_ids          = [aws_subnet.private_a.id, aws_subnet.private_b.id]
-  security_group_ids  = [aws_security_group.vpce_glue.id]
+  security_group_ids  = [aws_security_group.vpce_glue[0].id]
   tags = { Name = "vpce-glue-${var.layer}-${var.environment}" }
 }
 
@@ -264,4 +266,21 @@ resource "aws_flow_log" "main" {
   traffic_type    = "ALL"
   iam_role_arn    = aws_iam_role.flow_logs.arn
   log_destination = aws_cloudwatch_log_group.flow_logs.arn
+}
+
+
+# =============================================================================
+# CloudWatch log retention
+# When Lambda and Glue run they automatically create CloudWatch log groups 
+# that soon begin to pile up and never expire.. you end up paying for their storage.
+# =============================================================================
+
+resource "aws_cloudwatch_log_group" "lambda" {
+  name              = "/aws/lambda/${var.layer}-${var.environment}"
+  retention_in_days = 7
+}
+
+resource "aws_cloudwatch_log_group" "glue" {
+  name              = "/aws/glue/jobs/${var.layer}-${var.environment}"
+  retention_in_days = 7
 }
